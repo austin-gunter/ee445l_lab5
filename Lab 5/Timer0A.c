@@ -26,7 +26,7 @@
  http://users.ece.utexas.edu/~valvano/
  */
 #include <stdint.h>
-#include "..//inc//tm4c123gh6pm.h"
+#include "../inc/tm4c123gh6pm.h"
 
 
 
@@ -43,10 +43,11 @@ void (*PeriodicTask)(void);   // user function
 // Inputs:  task is a pointer to a user function
 //          period in units (1/clockfreq), 32 bits
 // Outputs: none
-void Timer0A_Init(void(*task)(void), uint32_t period){long sr;
+void Timer0A_Init(uint32_t period){
+	long sr;
   sr = StartCritical(); 
   SYSCTL_RCGCTIMER_R |= 0x01;   // 0) activate TIMER0
-  PeriodicTask = task;          // user function
+ 
   TIMER0_CTL_R = 0x00000000;    // 1) disable TIMER0A during setup
   TIMER0_CFG_R = 0x00000000;    // 2) configure for 32-bit mode
   TIMER0_TAMR_R = 0x00000002;   // 3) configure for periodic mode, default down-count settings
@@ -66,3 +67,4 @@ void Timer0A_Handler(void){
   TIMER0_ICR_R = TIMER_ICR_TATOCINT;// acknowledge timer0A timeout
   (*PeriodicTask)();                // execute user task
 }
+
