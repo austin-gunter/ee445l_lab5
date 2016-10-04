@@ -1,2 +1,2 @@
 .\music.o: Music.c
-.\music.o: C:\Keil\ARM\ARMCC\bin\..\include\stdint.h
+.\music.o: D:\Program Files (x86)\Keil\ARM\ARMCC\bin\..\include\stdint.h

@@ -440,6 +440,11 @@
               <FileType>1</FileType>
               <FilePath>.\Music.c</FilePath>
             </File>
+            <File>
+              <FileName>Timer1A.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Timer1A.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>
