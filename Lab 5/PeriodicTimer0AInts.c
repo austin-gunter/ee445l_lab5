@@ -44,7 +44,7 @@
 #define C 478   // 523.251 Hz			
 #define DF1 451   // 554.365 Hz			
 #define EF1 402   // 622.254 Hz			
-
+#define EighthNote 57971   // Length of an eighth note at 138bpm is approx 3.6ms, at 16MHz reload value of 57971 is 3.6ms
 
 
 void DisableInterrupts(void); // Disable interrupts
