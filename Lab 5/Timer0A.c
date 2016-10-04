@@ -30,6 +30,7 @@
 
 
 
+
 void DisableInterrupts(void); // Disable interrupts
 void EnableInterrupts(void);  // Enable interrupts
 long StartCritical (void);    // previous I bit, disable interrupts
@@ -63,8 +64,4 @@ void Timer0A_Init(uint32_t period){
   EndCritical(sr);
 }
 
-void Timer0A_Handler(void){
-  TIMER0_ICR_R = TIMER_ICR_TATOCINT;// acknowledge timer0A timeout
-  (*PeriodicTask)();                // execute user task
-}
 

@@ -34,6 +34,22 @@
 #include <stdint.h>
 #include "PLL.h"
 #include "Timer0A.h"
+#include "DAC.h"
+#include "Switch.h"
+#include "Timer1A.h"
+#include "Music.h"
+
+extern const unsigned short Trumpet64[];
+extern const unsigned short Bassoon64[];
+extern const unsigned short Oboe64[];
+
+extern uint32_t NoteArray[];
+extern uint32_t LengthArray[];
+uint32_t ArrayIndex = 0;
+uint32_t InstrumentIndex = 0;
+uint32_t Mode = 0;							// 0 = trumpet, 1 = bassoon, 2 = oboe
+uint32_t PlayFlag = 0;
+uint32_t Debug = 0;
 
 
 #define EF 804   // 311.127 Hz			
@@ -43,9 +59,109 @@
 #define BF 536   // 466.164 Hz			
 #define C 478   // 523.251 Hz			
 #define DF1 451   // 554.365 Hz			
-#define EF1 402   // 622.254 Hz			
-#define EighthNote 57971   // Length of an eighth note at 138bpm is approx 3.6ms, at 16MHz reload value of 57971 is 3.6ms
+#define EF1 402   // 622.254 Hz
+#define EigthNote 3478261 
 
+// Timer0A Handler = note frequency
+void Timer0A_Handler(void){
+  TIMER0_ICR_R = TIMER_ICR_TATOCINT;// acknowledge timer0A timeout
+  TIMER0_TAILR_R = 16000000/(NoteArray[ArrayIndex]*64);    // 4) reload value
+	if(Mode == 0){
+		DAC_Out(Trumpet64[InstrumentIndex%64]);	
+	}
+	else if(Mode == 1){
+		DAC_Out(Bassoon64[InstrumentIndex%64]);	
+	}
+	else if(Mode == 2){
+		DAC_Out(Oboe64[InstrumentIndex%64]);	
+	}
+	InstrumentIndex ++;
+	Debug++;
+}
+
+
+// Timer1A Handler = note length timer
+void Timer1A_Handler(void){
+  TIMER1_ICR_R = TIMER_ICR_TATOCINT;// acknowledge TIMER1A timeout
+	ArrayIndex ++;
+	if(ArrayIndex == 57){
+	  TIMER0_CTL_R = 0x00000000;    // 1) disable TIMER0A
+		TIMER1_CTL_R = 0x00000000;    // 1) disable TIMER1A
+		PlayFlag = 0;
+		ArrayIndex = 0;
+		InstrumentIndex = 0;
+	}
+	else{
+		TIMER1_TAILR_R = (LengthArray[ArrayIndex]*EigthNote);
+		TIMER0_TAILR_R = 0;
+	}
+}
+
+void GPIOPortB_Handler(void){
+
+//*************Play/Pause Button********************//
+	if(GPIO_PORTB_RIS_R&0x01){
+		GPIO_PORTB_IM_R &= ~0x01;		// Mask interrupt
+		GPIO_PORTB_ICR_R = 0x01;		// Acknowledge/Clear flag
+		if(PlayFlag == 0){
+			PlayFlag = 1;
+			Timer0A_Init(16000000/(NoteArray[0]*64));
+			Timer1A_Init(LengthArray[0]*EigthNote);
+		}
+		else{
+			GPIO_PORTB_IM_R |= 0x01;
+			uint32_t TempReload = TIMER1_TAILR_R;
+			while((GPIO_PORTB_RIS_R&0x01) == 0){
+				// Stop & Rewind Button while paused
+				if(GPIO_PORTB_RIS_R&0x02){
+					GPIO_PORTB_IM_R &= ~0x02;		// Mask interrupt
+					GPIO_PORTB_ICR_R = 0x02;		// Acknowledge/Clear flag
+					TIMER0_CTL_R = 0x00000000;    // 1) disable TIMER0A
+					TIMER1_CTL_R = 0x00000000;    // 1) disable TIMER1A
+					PlayFlag = 0;
+					ArrayIndex = 0;
+					InstrumentIndex = 0;
+					GPIO_PORTB_IM_R |= 0x02;		// Re-arm interrupt
+					break;
+				}
+				// Mode Button while paused
+				else if(GPIO_PORTB_RIS_R&0x04){
+					GPIO_PORTB_IM_R &= ~0x04;		// Mask interrupt
+					GPIO_PORTB_ICR_R = 0x04;		// Acknowledge/Clear flag
+					Mode ++;
+					if(Mode >= 3){
+						Mode = 0;
+					}
+					GPIO_PORTB_IM_R |= 0x04;
+				}
+			}
+			GPIO_PORTB_ICR_R = 0x01;		// Acknowledge/Clear flag
+			TIMER1_TAILR_R = TempReload;
+		}
+		GPIO_PORTB_IM_R |= 0x01;
+	}
+//*************Stop/Rewind Button****************//
+	else if(GPIO_PORTB_RIS_R&0x02){
+		GPIO_PORTB_IM_R &= ~0x02;		// Mask interrupt
+		GPIO_PORTB_ICR_R = 0x02;		// Acknowledge/Clear flag
+	  TIMER0_CTL_R = 0x00000000;    // 1) disable TIMER0A
+		TIMER1_CTL_R = 0x00000000;    // 1) disable TIMER1A
+		PlayFlag = 0;
+		ArrayIndex = 0;
+		InstrumentIndex = 0;
+		GPIO_PORTB_IM_R |= 0x02;		// Re-arm interrupt
+	}
+//***************Mode Button*****************//
+	else if(GPIO_PORTB_RIS_R&0x04){
+		GPIO_PORTB_IM_R &= ~0x04;		// Mask interrupt
+		GPIO_PORTB_ICR_R = 0x04;		// Acknowledge/Clear flag
+		Mode ++;
+		if(Mode >= 3){
+			Mode = 0;
+		}
+		GPIO_PORTB_IM_R |= 0x04;
+	}
+}
 
 void DisableInterrupts(void); // Disable interrupts
 void EnableInterrupts(void);  // Enable interrupts
@@ -59,8 +175,9 @@ void WaitForInterrupt(void);  // low power mode
 //debug code
 int main(void){ 
   PLL_Init(Bus16MHz);              // bus clock at 16 MHz
-//  Timer0A_Init(&UserTask, F20KHZ);     // initialize timer0A (20,000 Hz)
-  Timer0A_Init(F16HZ);  // initialize timer0A (16 Hz)
+	DACinit();
+	SwitchesInit();
+//  Timer0A_Init(F16HZ);  // initialize timer0A (16 Hz)
   EnableInterrupts();
 
   while(1){
